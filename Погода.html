@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Погода Плюс</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e; /* Темный фон по умолчанию */
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            color: white;
+            transition: background 0.5s ease;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 30px;
+            padding: 25px;
+            width: 100%;
+            max-width: 380px;
+            text-align: center;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+        }
+
+        .search-area {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input {
+            flex: 1;
+            padding: 12px 15px;
+            border-radius: 15px;
+            border: none;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            outline: none;
+        }
+
+        button {
+            padding: 12px 18px;
+            border-radius: 15px;
+            border: none;
+            background: #4facfe;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .main-info i {
+            font-size: 70px;
+            margin: 15px 0;
+            display: block;
+            filter: drop-shadow(0 0 10px rgba(255,255,255,0.3));
+        }
+
+        .temp {
+            font-size: 60px;
+            font-weight: bold;
+        }
+
+        .city-name { font-size: 24px; margin-bottom: 5px; }
+
+        .extra-data {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 30px;
+            gap: 10px;
+        }
+
+        .data-box {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 20px;
+            flex: 1;
+        }
+
+        .data-box i { color: #4facfe; margin-bottom: 8px; font-size: 20px; }
+        .label { font-size: 10px; opacity: 0.6; text-transform: uppercase; }
+        .val { font-weight: bold; font-size: 16px; }
+
+        #status { font-size: 14px; margin-top: 10px; color: #ffeb3b; }
+        
+        /* Стили для разных погод */
+        .bg-sun { background: linear-gradient(180deg, #f6d365 0%, #fda085 100%); }
+        .bg-cloud { background: linear-gradient(180deg, #50667b 0%, #2c3e50 100%); }
+        .bg-rain { background: linear-gradient(180deg, #616161 0%, #9bc5c3 100%); }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <div class="search-area">
+            <input type="text" id="cityInput" placeholder="Город...">
+            <button id="searchBtn"><i class="fas fa-search"></i></button>
+        </div>
+
+        <div id="status">Загрузка...</div>
+
+        <div id="weatherDisplay">
+            <h2 class="city-name" id="cityName">Москва</h2>
+            <p id="date" style="opacity: 0.7; font-size: 14px;"></p>
+
+            <div class="main-info">
+                <i id="weatherIcon" class="fas fa-cloud-sun"></i>
+                <div class="temp" id="temp">--°</div>
+                <p id="description" style="text-transform: capitalize;">Облачно</p>
+            </div>
+
+            <div class="extra-data">
+                <div class="data-box">
+                    <i class="fas fa-droplet"></i>
+                    <div class="label">Влажность</div>
+                    <div class="val" id="humidity">--%</div>
+                </div>
+                <div class="data-box">
+                    <i class="fas fa-wind"></i>
+                    <div class="label">Ветер</div>
+                    <div class="val" id="wind">-- км/ч</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const weatherIcons = {
+            0: { icon: 'fa-sun', bg: 'bg-sun', desc: 'Ясно' },
+            1: { icon: 'fa-cloud-sun', bg: 'bg-sun', desc: 'Малооблачно' },
+            2: { icon: 'fa-cloud-sun', bg: 'bg-cloud', desc: 'Переменная облачность' },
+            3: { icon: 'fa-cloud', bg: 'bg-cloud', desc: 'Пасмурно' },
+            45: { icon: 'fa-smog', bg: 'bg-cloud', desc: 'Туман' },
+            61: { icon: 'fa-cloud-showers-heavy', bg: 'bg-rain', desc: 'Дождь' },
+            95: { icon: 'fa-cloud-bolt', bg: 'bg-rain', desc: 'Гроза' }
+        };
+
+        async function fetchWeather(city) {
+            const status = document.getElementById('status');
+            status.innerText = "Ищу город...";
+            
+            try {
+                // 1. Поиск координат
+                const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=ru&format=json`);
+                const geoData = await geoRes.json();
+
+                if (!geoData.results) {
+                    status.innerText = "Город не найден!";
+                    return;
+                }
+
+                const { latitude, longitude, name, country } = geoData.results[0];
+
+                // 2. Получение погоды
+                const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&hourly=relativehumidity_2m&timezone=auto`);
+                const data = await weatherRes.json();
+                
+                updateUI(data, name, country);
+                status.innerText = "";
+            } catch (e) {
+                status.innerText = "Ошибка сети!";
+                console.error(e);
+            }
+        }
+
+        function updateUI(data, name, country) {
+            const cur = data.current_weather;
+            const code = cur.weathercode;
+            const weather = weatherIcons[code] || { icon: 'fa-cloud', bg: 'bg-cloud', desc: 'Облачно' };
+
+            // Текстовые данные
+            document.getElementById('cityName').innerText = `${name}, ${country}`;
+            document.getElementById('temp').innerText = Math.round(cur.temperature) + "°";
+            document.getElementById('wind').innerText = cur.windspeed + " км/ч";
+            document.getElementById('description').innerText = weather.desc;
+            
+            // Влажность (берем текущий час)
+            const hour = new Date().getHours();
+            document.getElementById('humidity').innerText = data.hourly.relativehumidity_2m[hour] + "%";
+            
+            // Иконка и фон
+            document.getElementById('weatherIcon').className = `fas ${weather.icon}`;
+            document.body.className = weather.bg;
+            
+            // Дата
+            document.getElementById('date').innerText = new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
+        }
+
+        document.getElementById('searchBtn').onclick = () => {
+            const val = document.getElementById('cityInput').value;
+            if(val) fetchWeather(val);
+        };
+
+        // Запуск при старте
+        fetchWeather('Москва');
+    </script>
+</body>
+  </html>
