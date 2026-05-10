@@ -3,98 +3,148 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Погода</title>
+    <title>Моя Погода</title>
     <style>
         body {
-            font-family: sans-serif;
+            font-family: 'Segoe UI', sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
             margin: 0;
-            background: #1e3c72;
+            background: linear-gradient(to bottom, #4facfe 0%, #00f2fe 100%);
             color: white;
         }
         .card {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 20px;
-            border-radius: 20px;
-            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.2);
+            padding: 25px;
+            border-radius: 25px;
+            backdrop-filter: blur(15px);
             text-align: center;
-            width: 90%;
-            max-width: 350px;
+            width: 85%;
+            max-width: 320px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        .search-box {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 20px;
         }
         input {
-            width: 70%;
+            flex: 1;
             padding: 10px;
-            border-radius: 10px;
+            border-radius: 12px;
             border: none;
+            background: rgba(255, 255, 255, 0.3);
+            color: white;
             outline: none;
         }
+        input::placeholder { color: rgba(255,255,255,0.7); }
         button {
             padding: 10px;
-            border-radius: 10px;
+            border-radius: 12px;
             border: none;
-            background: #4facfe;
-            color: white;
+            background: #fff;
+            color: #4facfe;
+            font-weight: bold;
             cursor: pointer;
         }
-        .temp { font-size: 50px; margin: 20px 0; }
-        .details { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 14px; }
+        h1 { margin: 10px 0; font-size: 26px; text-shadow: 1px 1px 2px rgba(0,0,0,0.1); }
+        .temp { font-size: 55px; font-weight: bold; margin: 10px 0; }
+        .description { font-size: 18px; margin-bottom: 15px; opacity: 0.9; }
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 15px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        .label { display: block; opacity: 0.8; margin-bottom: 4px; }
+        .value { font-weight: bold; font-size: 16px; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <input type="text" id="cityInput" placeholder="Введите город...">
-    <button onclick="searchWeather()">🔍</button>
-    
-    <h2 id="cityName">Город</h2>
+    <div class="search-box">
+        <input type="text" id="cityInput" placeholder="Город...">
+        <button onclick="searchWeather()">OK</button>
+    </div>
+
+    <h1 id="cityName">Погода</h1>
     <div class="temp" id="temp">--°C</div>
-    <div id="desc">Введите город и нажмите поиск</div>
-    
-    <hr>
-    <div class="details">
-        <div>Ветер: <span id="wind">--</span> м/с</div>
-        <div>УФ-индекс: <span id="uv">--</span></div>
+    <div class="description" id="desc">Введите город</div>
+
+    <div class="info-grid">
+        <div>
+            <span class="label">Ветер</span>
+            <span class="value"><span id="wind">--</span> м/с</span>
+        </div>
+        <div>
+            <span class="label">УФ-индекс</span>
+            <span class="value" id="uv">--</span>
+        </div>
+        <div>
+            <span class="label">День</span>
+            <span class="value" id="range">-- / --</span>
+        </div>
+        <div>
+            <span class="label">Осадки</span>
+            <span class="value" id="rain">--%</span>
+        </div>
     </div>
 </div>
 
 <script>
     async function searchWeather() {
         const city = document.getElementById('cityInput').value;
-        const descBox = document.getElementById('desc');
         if (!city) return;
 
-        descBox.innerText = "Ищу...";
-
         try {
-            // 1. Получаем координаты города через Геокодинг (бесплатно)
+            // Геокодинг
             const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${city}&count=1&language=ru&format=json`;
             const geoRes = await fetch(geoUrl);
             const geoData = await geoRes.json();
 
             if (!geoData.results) {
-                descBox.innerText = "Город не найден";
+                document.getElementById('desc').innerText = "Город не найден";
                 return;
             }
 
             const { latitude, longitude, name } = geoData.results[0];
             document.getElementById('cityName').innerText = name;
 
-            // 2. Получаем погоду по координатам
-            const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code,wind_speed_10m&daily=uv_index_max&timezone=auto`;
+            // Погода
+            const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m&daily=temperature_2m_max,temperature_2m_min,uv_index_max,precipitation_probability_max&timezone=auto`;
             const weatherRes = await fetch(weatherUrl);
             const weatherData = await weatherRes.json();
 
             // Вывод данных
             document.getElementById('temp').innerText = Math.round(weatherData.current.temperature_2m) + "°C";
-            document.getElementById('wind').innerText = weatherData.current.wind_speed_10m;
-            document.getElementById('uv').innerText = weatherData.daily.uv_index_max[0];
-            descBox.innerText = "Данные обновлены";
+            document.getElementById('wind').innerText = weatherData.current.wind_speed_10m.toFixed(1);
+            
+            // УФ-индекс
+            const uv = weatherData.daily.uv_index_max[0];
+            document.getElementById('uv').innerText = uv;
+
+            // Прогноз на день (Мин / Макс)
+            const min = Math.round(weatherData.daily.temperature_2m_min[0]);
+            const max = Math.round(weatherData.daily.temperature_2m_max[0]);
+            document.getElementById('range').innerText = `${min}° / ${max}°`;
+
+            // Вероятность осадков
+            document.getElementById('rain').innerText = weatherData.daily.precipitation_probability_max[0] + "%";
+
+            // Описание по коду
+            const code = weatherData.current.weather_code;
+            const codes = { 0: "Ясно", 1: "Ясно", 2: "Облачно", 3: "Пасмурно", 45: "Туман", 61: "Дождь", 71: "Снег", 95: "Гроза" };
+            document.getElementById('desc').innerText = codes[code] || "Облачно";
 
         } catch (e) {
-            descBox.innerText = "Ошибка сети";
+            document.getElementById('desc').innerText = "Ошибка сети";
         }
     }
 </script>
